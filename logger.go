@@ -65,6 +65,7 @@ func Init() *zap.Logger {
 		logger = zap.Must(zap.NewDevelopment())
 	}*/
 
+	//TODO: check if logger instance exists first
 	logger := createLogger()
 
 	defer logger.Sync()
@@ -89,29 +90,42 @@ func New() {
 func createLogger() *zap.Logger {
 	stdout := zapcore.AddSync(os.Stdout)
 
-	/*file := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   "logs/app.log",
-		MaxSize:    10, // megabytes
-		MaxBackups: 3,
-		MaxAge:     7, // days
-	})*/
-
 	level := zap.NewAtomicLevelAt(zap.InfoLevel)
 
-	productionCfg := zap.NewProductionEncoderConfig()
-	productionCfg.TimeKey = "timestamp"
-	productionCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	if LOG_LEVEL == "debug" {
+		level = zap.NewAtomicLevelAt(zap.DebugLevel)
+	}
 
-	developmentCfg := zap.NewDevelopmentEncoderConfig()
-	developmentCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	if LOG_LEVEL == "warn" {
+		level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	}
 
-	consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
-	fileEncoder := zapcore.NewJSONEncoder(productionCfg)
+	if LOG_LEVEL == "error" {
+		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	}
 
-	core := zapcore.NewTee(
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	if LOG_ENV == "dev" {
+		encoderConfig = zap.NewDevelopmentEncoderConfig()
+		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
+
+	/*consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
+	jsonEncoder := zapcore.NewJSONEncoder(productionCfg)*/
+	encoder := zapcore.NewJSONEncoder(encoderConfig)
+	if LOG_FORMAT == "console" {
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+	}
+
+	/*core := zapcore.NewTee(
 		zapcore.NewCore(consoleEncoder, stdout, level),
-		zapcore.NewCore(fileEncoder, stdout, level),
-	)
+		zapcore.NewCore(jsonEncoder, stdout, level),
+	)*/
+
+	core := zapcore.NewCore(encoder, stdout, level)
 
 	return zap.New(core)
 }
