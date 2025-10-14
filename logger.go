@@ -1,72 +1,64 @@
 package logging
 
 import (
+	"errors"
+	"log"
 	"os"
 
+	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-var LOG_ENV string
-var LOG_LEVEL string
-var LOG_FORMAT string
-
-// TODO: use core not config
 var core zapcore.Core
 
-/*
-func Init() {
-	logger := zap.Must(zap.NewProduction())
-
-	defer logger.Sync()
-
-	logger.Info("Hello from Zap logger!")
-}*/
-
 func Init() *zap.Logger {
-	LOG_ENV = "prod"
-	LOG_LEVEL = "info"
-	LOG_FORMAT = "json"
-
-	/*config := zap.Config{
-		Level:            zap.NewAtomicLevelAt(zap.InfoLevel),
-		Development:      false,
-		Encoding:         "json",
-		EncoderConfig:    zap.NewDevelopmentEncoderConfig(),
-		OutputPaths:      []string{"stdout", "logfile"},
-		ErrorOutputPaths: []string{"stderr"},
+	//set env vars
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
 	}
 
-	if LOG_ENV == "dev" {
-		config.Development = true
-		config.Encoding = "console"
-	}
+	LOG_ENV := os.Getenv("LOG_ENV")
+	LOG_LEVEL := os.Getenv("LOG_LEVEL")
+	LOG_FORMAT := os.Getenv("LOG_FORMAT")
+
+	//set up core
+	stdout := zapcore.AddSync(os.Stdout)
+
+	level := zap.NewAtomicLevelAt(zap.InfoLevel)
 
 	if LOG_LEVEL == "debug" {
-		config.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
+		level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	}
-
 	if LOG_LEVEL == "warn" {
-		config.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+		level = zap.NewAtomicLevelAt(zap.WarnLevel)
 	}
-
 	if LOG_LEVEL == "error" {
-		config.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	}
 
+	encoderConfig := zap.NewProductionEncoderConfig()
+
+	if LOG_ENV == "dev" {
+		encoderConfig = zap.NewDevelopmentEncoderConfig()
+		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	encoder := zapcore.NewJSONEncoder(encoderConfig)
 	if LOG_FORMAT == "console" {
-		config.Encoding = "console"
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
 	}
 
-	logger := zap.Must(config.Build())
+	core = zapcore.NewCore(encoder, stdout, level)
 
-	//logger := zap.Must(zap.NewProduction())
-	/*if LOG_ENV == "dev" {
-		logger = zap.Must(zap.NewDevelopment())
-	}*/
-
-	//TODO: check if logger instance exists first
-	logger := createLogger()
+	//build global logger
+	logger, err := New()
+	if err != nil {
+		panic(err)
+	}
 
 	defer logger.Sync()
 
@@ -83,49 +75,9 @@ func Named(name string) *zap.Logger {
 	return zap.L().Named(name)
 }
 
-func New() {
-
-}
-
-func createLogger() *zap.Logger {
-	stdout := zapcore.AddSync(os.Stdout)
-
-	level := zap.NewAtomicLevelAt(zap.InfoLevel)
-
-	if LOG_LEVEL == "debug" {
-		level = zap.NewAtomicLevelAt(zap.DebugLevel)
+func New() (*zap.Logger, error) {
+	if core == nil {
+		return zap.New(core), errors.New("Core not initialized")
 	}
-
-	if LOG_LEVEL == "warn" {
-		level = zap.NewAtomicLevelAt(zap.WarnLevel)
-	}
-
-	if LOG_LEVEL == "error" {
-		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	}
-
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.TimeKey = "timestamp"
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	if LOG_ENV == "dev" {
-		encoderConfig = zap.NewDevelopmentEncoderConfig()
-		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	}
-
-	/*consoleEncoder := zapcore.NewConsoleEncoder(developmentCfg)
-	jsonEncoder := zapcore.NewJSONEncoder(productionCfg)*/
-	encoder := zapcore.NewJSONEncoder(encoderConfig)
-	if LOG_FORMAT == "console" {
-		encoder = zapcore.NewConsoleEncoder(encoderConfig)
-	}
-
-	/*core := zapcore.NewTee(
-		zapcore.NewCore(consoleEncoder, stdout, level),
-		zapcore.NewCore(jsonEncoder, stdout, level),
-	)*/
-
-	core := zapcore.NewCore(encoder, stdout, level)
-
-	return zap.New(core)
+	return zap.New(core), nil
 }
