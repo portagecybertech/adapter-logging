@@ -1,7 +1,6 @@
 package logging
 
 import (
-	"errors"
 	"log"
 	"os"
 
@@ -11,8 +10,43 @@ import (
 )
 
 var core zapcore.Core
+var global_init bool = false
 
 func Init() *zap.Logger {
+	if core == nil {
+		initCore()
+	}
+
+	//build global logger
+	logger := New()
+
+	defer logger.Sync()
+
+	zap.ReplaceGlobals(logger)
+	global_init = true
+
+	return logger
+}
+
+func L() *zap.Logger {
+	if !global_init {
+		Init()
+	}
+	return zap.L()
+}
+
+func Named(name string) *zap.Logger {
+	return L().Named(name)
+}
+
+func New() *zap.Logger {
+	if core == nil {
+		initCore()
+	}
+	return zap.New(core)
+}
+
+func initCore() {
 	//set env vars
 	err := godotenv.Load()
 	if err != nil {
@@ -20,21 +54,26 @@ func Init() *zap.Logger {
 	}
 
 	LOG_ENV := os.Getenv("LOG_ENV")
-	LOG_LEVEL := os.Getenv("LOG_LEVEL")
 	LOG_FORMAT := os.Getenv("LOG_FORMAT")
 
 	//set up core
 	stdout := zapcore.AddSync(os.Stdout)
 
-	level := zap.NewAtomicLevelAt(zap.InfoLevel)
+	//default level for prod is "error" dev is "info"
+	level := zap.NewAtomicLevelAt(zap.ErrorLevel)
+	if LOG_ENV == "dev" {
+		level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	}
 
-	if LOG_LEVEL == "debug" {
+	//specified log level overrides LOG_ENV default selection
+	switch LOG_LEVEL := os.Getenv("LOG_LEVEL"); LOG_LEVEL {
+	case "debug":
 		level = zap.NewAtomicLevelAt(zap.DebugLevel)
-	}
-	if LOG_LEVEL == "warn" {
+	case "info":
+		level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case "warn":
 		level = zap.NewAtomicLevelAt(zap.WarnLevel)
-	}
-	if LOG_LEVEL == "error" {
+	case "error":
 		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
 	}
 
@@ -53,31 +92,4 @@ func Init() *zap.Logger {
 	}
 
 	core = zapcore.NewCore(encoder, stdout, level)
-
-	//build global logger
-	logger, err := New()
-	if err != nil {
-		panic(err)
-	}
-
-	defer logger.Sync()
-
-	zap.ReplaceGlobals(logger)
-
-	return logger
-}
-
-func L() *zap.Logger {
-	return zap.L()
-}
-
-func Named(name string) *zap.Logger {
-	return zap.L().Named(name)
-}
-
-func New() (*zap.Logger, error) {
-	if core == nil {
-		return zap.New(core), errors.New("Core not initialized")
-	}
-	return zap.New(core), nil
 }
