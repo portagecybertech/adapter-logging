@@ -6,6 +6,8 @@ import (
 
 func TestInit(t *testing.T) {
 	log := Init()
+	log.Level()
+	log.Name()
 	if log == nil {
 		t.Errorf("Init failed")
 	}
@@ -18,11 +20,14 @@ func TestL(t *testing.T) {
 	}
 }
 
-func TestNamedName(t *testing.T) {
-	name := "Gladys"
+func TestNamed(t *testing.T) {
+	name := "Testname"
 	log := Named(name)
 	if log == nil {
 		t.Errorf("Named failed")
+	}
+	if name != log.Name() {
+		t.Errorf("Name does not match")
 	}
 }
 
