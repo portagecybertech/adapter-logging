@@ -1,10 +1,8 @@
 package logging
 
 import (
-	"log"
 	"os"
 
-	"github.com/joho/godotenv"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -13,10 +11,6 @@ var core zapcore.Core
 var global_init bool = false
 
 func Init() *zap.Logger {
-	if core == nil {
-		initCore()
-	}
-
 	//build global logger
 	logger := New()
 
@@ -40,21 +34,15 @@ func Named(name string) *zap.Logger {
 }
 
 func New() *zap.Logger {
-	if core == nil {
-		initCore()
-	}
+	initCore()
 	return zap.New(core)
 }
 
 func initCore() {
 	//set env vars
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
 	LOG_ENV := os.Getenv("LOG_ENV")
 	LOG_FORMAT := os.Getenv("LOG_FORMAT")
+	LOG_LEVEL := os.Getenv("LOG_LEVEL")
 
 	//set up core
 	stdout := zapcore.AddSync(os.Stdout)
@@ -66,7 +54,7 @@ func initCore() {
 	}
 
 	//specified log level overrides LOG_ENV default selection
-	switch LOG_LEVEL := os.Getenv("LOG_LEVEL"); LOG_LEVEL {
+	switch ll := LOG_LEVEL; ll {
 	case "debug":
 		level = zap.NewAtomicLevelAt(zap.DebugLevel)
 	case "info":
@@ -75,6 +63,12 @@ func initCore() {
 		level = zap.NewAtomicLevelAt(zap.WarnLevel)
 	case "error":
 		level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	case "panic":
+		level = zap.NewAtomicLevelAt(zap.PanicLevel)
+	case "dpanic":
+		level = zap.NewAtomicLevelAt(zap.DPanicLevel)
+	case "fatal":
+		level = zap.NewAtomicLevelAt(zap.FatalLevel)
 	}
 
 	encoderConfig := zap.NewProductionEncoderConfig()
