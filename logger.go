@@ -2,28 +2,29 @@ package logging
 
 import (
 	"os"
+	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 var core zapcore.Core
-var global_init bool = false
 
 func Init() *zap.Logger {
-	//build global logger
-	logger := New()
+	// initialize the core
+	initCore()
 
+	//build global logger
+	logger := zap.New(core)
 	defer logger.Sync()
 
 	zap.ReplaceGlobals(logger)
-	global_init = true
 
 	return logger
 }
 
 func L() *zap.Logger {
-	if !global_init {
+	if core == nil {
 		Init()
 	}
 	return zap.L()
@@ -33,16 +34,11 @@ func Named(name string) *zap.Logger {
 	return L().Named(name)
 }
 
-func New() *zap.Logger {
-	initCore()
-	return zap.New(core)
-}
-
 func initCore() {
 	//set env vars
-	LOG_ENV := os.Getenv("LOG_ENV")
-	LOG_FORMAT := os.Getenv("LOG_FORMAT")
-	LOG_LEVEL := os.Getenv("LOG_LEVEL")
+	LOG_ENV := strings.ToLower(os.Getenv("LOG_ENV"))
+	LOG_FORMAT := strings.ToLower(os.Getenv("LOG_FORMAT"))
+	LOG_LEVEL := strings.ToLower(os.Getenv("LOG_LEVEL"))
 
 	//set up core
 	stdout := zapcore.AddSync(os.Stdout)
